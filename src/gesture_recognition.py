@@ -30,10 +30,17 @@ def finger_is_up(lm, tip_id, pip_id):
 
 
 def is_fingers_crossed(lm):
-    index_tip, middle_tip = lm.landmark[8], lm.landmark[12]
+    index_up = finger_is_up(lm, 8, 6)
+    middle_up = finger_is_up(lm, 12, 10)
+    
+    if not(index_up and middle_up):
+        return False#not allowed to be crossed unless both fingers are extended
+    
+    index_tip, middlle_tip = lm.landmark[8], lm.landmark[12]
     index_base, middle_base = lm.landmark[5], lm.landmark[9]
-    normal_order = index_base.x < middle_base.x
-    tip_order = index_tip.x < middle_tip.x
+    normal_order = index_tip.x < middle_base.x
+    tip_order = index_tip.x < middlle_tip.x
+    
     return normal_order != tip_order
 
 
