@@ -1,9 +1,6 @@
 ## Gesture Recognition: Development Process
 
-This section documents the iterative debugging process behind the 
-gesture classification system, since the final solution required 
-solving real coordinate-frame problems rather than just tuning 
-thresholds.
+**Status: active debugging.** Gesture classification is still being refined, and the webcam prototype is not integrated with drone flight. These notes describe approaches explored so far; they do not establish reliable classification across all hand orientations.
 
 ### Attempt 1: Basic Finger Curl Detection (2D)
 
@@ -32,7 +29,7 @@ coordinates depending on hand orientation relative to the camera.
 ### Attempt 2: 3D Distance-Based Finger Curl Detection
 
 Reworked finger curl detection using MediaPipe's z-coordinate (depth) 
-in addition to x and y, measuring true 3D distance from each 
+in addition to x and y, computing a distance heuristic from each 
 fingertip to the wrist:
 
 ```python
@@ -50,10 +47,7 @@ def finger_is_up(lm, tip_id, pip_id):
     return tip_dist > pip_dist
 ```
 
-**Result:** Open palm, closed fist, thumbs up/down, and fingers 
-crossed now classify correctly regardless of hand orientation, since 
-an extended finger is always farther from the wrist in true 3D 
-space - not just in a flattened camera projection.
+**Current assessment:** The prototype uses landmark-distance comparisons to estimate finger extension. Classification still requires debugging and validation across hand poses and orientations; these comparisons do not guarantee correct recognition.
 
 ---
 
@@ -90,7 +84,7 @@ tied to the hand's orientation, not just a depth value.
 
 ---
 
-### Attempt 4: Hand-Relative Coordinate Frame (Final Solution)
+### Attempt 4: Hand-Relative Coordinate Frame (Current Approach)
 
 Built a local coordinate system from the hand's own landmarks, then 
 measured pointing direction relative to that frame instead of the 
@@ -138,21 +132,12 @@ left/right relative to the hand's own orientation." This required:
    each of these hand-relative axes, determining how much of the 
    gesture lies along "hand-up" vs. "hand-right"
 
-**Result:** Pointing direction now classifies correctly regardless 
-of whether the palm faces the camera or faces the user - the code 
-determines direction relative to the hand's own orientation rather 
-than the camera's fixed image frame.
+**Current assessment:** The hand-relative projection approach is implemented, but pointing-direction classification is still being debugged. Robustness across palm orientation, hand rotation, and ambiguous poses remains to be validated.
 
 ---
 
-### Summary of Root Cause Across All Attempts
+### Current Takeaways
 
-Every failure mode traced back to the same underlying issue: 
-**measuring hand geometry using the camera's fixed 2D image frame 
-instead of a frame relative to the hand itself.** Finger curl was 
-solved by adding a third dimension (z-depth). Pointing direction 
-required building an entirely new 2D coordinate frame from the 
-hand's own landmarks and using vector projection (dot products) to 
-measure direction within that frame - the same general technique 
-used in robotics for transforming between a sensor's frame and a 
-robot's local reference frame.
+Coordinate-frame choices and landmark geometry are central to the approaches explored here. The prototype combines x/y/z landmark-distance heuristics for finger extension with 2D hand-relative projections for pointing direction.
+
+These are working hypotheses and implementation approaches, not a completed solution. Current work focuses on accurate gesture classification before connecting the classifier to drone flight. Threading and PID finger-following have not been started, and return-to-launch remains unfinished.
