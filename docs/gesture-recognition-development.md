@@ -84,7 +84,7 @@ tied to the hand's orientation, not just a depth value.
 
 ---
 
-### Attempt 4: Hand-Relative Coordinate Frame (Current Approach)
+### Attempt 4: Hand-Relative Coordinate Frame (Earlier Approach)
 
 Built a local coordinate system from the hand's own landmarks, then 
 measured pointing direction relative to that frame instead of the 
@@ -135,6 +135,20 @@ left/right relative to the hand's own orientation." This required:
 **Current assessment:** The hand-relative projection approach is implemented, but pointing-direction classification is still being debugged. Robustness across palm orientation, hand rotation, and ambiguous poses remains to be validated.
 
 ---
+
+### Current Uploaded Revision: Palm-Reference Projection and Angle Sectors
+
+The uploaded `normal_finger_detection.py`, now stored as [../src/gesture_recognition.py](../src/gesture_recognition.py), contains a later version of `is_pointing_direction()`:
+
+1. Use middle-finger base (landmark 9) as `palm_ref`.
+2. Build a reference vector from that point to index-finger base (5).
+3. Build a pointing vector from index-finger base (5) to tip (8).
+4. Compute an up/down component from the y/z terms and a left/right component using the perpendicular reference in the x/y plane.
+5. Use `atan2(left_right_component, up_down_component)` and 90-degree sectors to assign a direction.
+
+The code retains the earlier wrist-based `get_pointing_components()` helper. That helper and the revised classifier use different calculations. The active webcam loop currently shows finger-distance debug values and does not call `classify_gesture()`; this intentionally preserves the uploaded debugging configuration.
+
+The projection revision is being debugged and is not claimed to provide a fully validated 3D coordinate transform.
 
 ### Current Takeaways
 

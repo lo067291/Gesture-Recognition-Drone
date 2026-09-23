@@ -168,12 +168,6 @@ def is_thumbs_down(lm):
 def classify_gesture(lm):
     if is_fingers_crossed(lm):
         return "FINGERS CROSSED - Finger Follow Mode"
-    # Thumb gestures also satisfy the four-curled-fingers fist rule.
-    # Check the more specific gestures before the general fist fallback.
-    elif is_thumbs_up(lm):
-        return "THUMBS UP - Move Forward"
-    elif is_thumbs_down(lm):
-        return "THUMBS DOWN - Move Backward"
     elif is_closed_fist(lm):
         return "CLOSED FIST - Land/Return Home"
     elif is_open_palm(lm):
@@ -188,6 +182,11 @@ def classify_gesture(lm):
         return "POINTING LEFT - Move Left"
     elif pointing_dir == "right":
         return "POINTING RIGHT - Move Right"
+
+    if is_thumbs_up(lm):
+        return "THUMBS UP - Move Forward"
+    elif is_thumbs_down(lm):
+        return "THUMBS DOWN - Move Backward"
 
     return "Unclassified hand position"
 
@@ -212,7 +211,6 @@ while True:
         for hand_landmarks in results.multi_hand_landmarks:
             mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-            gesture_text = classify_gesture(hand_landmarks)
             tip_dist, pip_dist, index_extended = debug_index_state(hand_landmarks)
 
             cv2.putText(frame, f"tip_dist: {tip_dist:.4f}", (10, 30),
@@ -222,8 +220,6 @@ while True:
             cv2.putText(frame, f"index_extended: {index_extended}", (10, 90),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
-    cv2.putText(frame, gesture_text, (10, 130),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
     cv2.imshow("Debug Values", frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
