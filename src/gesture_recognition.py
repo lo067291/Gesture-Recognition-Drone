@@ -32,15 +32,15 @@ def finger_is_up(lm, tip_id, pip_id):
 def is_fingers_crossed(lm):
     index_up = finger_is_up(lm, 8, 6)
     middle_up = finger_is_up(lm, 12, 10)
-    
+
     if not(index_up and middle_up):
         return False#not allowed to be crossed unless both fingers are extended
-    
+
     index_tip, middlle_tip = lm.landmark[8], lm.landmark[12]
     index_base, middle_base = lm.landmark[5], lm.landmark[9]
     normal_order = index_tip.x < middle_base.x
     tip_order = index_tip.x < middlle_tip.x
-    
+
     return normal_order != tip_order
 
 
@@ -57,8 +57,37 @@ def is_closed_fist(lm):
             not finger_is_up(lm, 16, 14) and
             not finger_is_up(lm, 20, 18))
 
+def get_pointing_components(lm):
+    index_up = finger_is_up(lm, 8, 6)
+    others_down = (not finger_is_up(lm, 12, 10) and
+                   not finger_is_up(lm, 16, 14) and
+                   not finger_is_up(lm, 20, 18))
 
-def is_pointing_direction(lm): #changed from checking strict location to checking location relative to hand orientation
+    if not (index_up and others_down):
+        return None, None, None
+
+    wrist = lm.landmark[0]
+    index_tip = lm.landmark[8]
+    index_base = lm.landmark[5]
+
+    hand_dir_x = index_base.x - wrist.x
+    hand_dir_y = index_base.y - wrist.y
+
+    point_dir_x = index_tip.x - index_base.x
+    point_dir_y = index_tip.y - index_base.y
+
+    perp_x = -hand_dir_y
+    perp_y = hand_dir_x
+
+    left_right_component = (point_dir_x * perp_x) + (point_dir_y * perp_y)
+    up_down_component = (point_dir_x * hand_dir_x) + (point_dir_y * hand_dir_y)
+
+    angle = math.atan2(left_right_component, up_down_component)
+    angle_degrees = math.degrees(angle)
+
+    return left_right_component, up_down_component, angle_degrees
+
+def is_pointing_direction(lm):
     index_up = finger_is_up(lm, 8, 6)
     others_down = (not finger_is_up(lm, 12, 10) and
                    not finger_is_up(lm, 16, 14) and
@@ -67,31 +96,43 @@ def is_pointing_direction(lm): #changed from checking strict location to checkin
     if not (index_up and others_down):
         return None
 
-    wrist = lm.landmark[0]
+    # Use middle finger base (9) as stable palm reference instead of wrist
+    palm_ref = lm.landmark[9]
     index_tip = lm.landmark[8]
     index_base = lm.landmark[5]
 
-    #vector from wrist to index base defines the hands axis for orientation
-    hand_dir_x = index_base.x - wrist.x
-    hand_dir_y = index_base.y - wrist.y
+    # 3D vector from palm reference to index base - stable "hand up" axis
+    hand_dir_x = index_base.x - palm_ref.x
+    hand_dir_y = index_base.y - palm_ref.y
+    hand_dir_z = index_base.z - palm_ref.z
 
-    #vector from index base to index tip defines the actual direction of the hand pointing
+    # 3D vector for actual pointing direction
     point_dir_x = index_tip.x - index_base.x
     point_dir_y = index_tip.y - index_base.y
+    point_dir_z = index_tip.z - index_base.z
 
-    #perpendicualr vector to hand_dir, defines hands "right side"
-    #flips automatically based on which way the palm is facing
+    # Use the y and z components specifically for up/down detection,
+    # since bending the wrist forward primarily changes depth (z)
+    # and vertical (y) position, not left/right (x)
+    up_down_component = (point_dir_y * hand_dir_y) + (point_dir_z * hand_dir_z)
+
+    # Left/right still uses the perpendicular-in-xy-plane approach,
+    # since horizontal pointing doesn't involve wrist flexion
     perp_x = -hand_dir_y
     perp_y = hand_dir_x
-
-    # Project point_dir onto perp vector to determine left/right relative to palm orientation
     left_right_component = (point_dir_x * perp_x) + (point_dir_y * perp_y)
-    up_down_component = (point_dir_x * hand_dir_x) + (point_dir_y * hand_dir_y)
 
-    if abs(up_down_component) > abs(left_right_component):
-        return "up" if up_down_component < 0 else "down"
+    angle = math.atan2(left_right_component, up_down_component)
+    angle_degrees = math.degrees(angle)
+
+    if -45 <= angle_degrees < 45:
+        return "up"
+    elif 45 <= angle_degrees < 135:
+        return "right"
+    elif -135 <= angle_degrees < -45:
+        return "left"
     else:
-        return "left" if left_right_component < 0 else "right"
+        return "down"
 
 def is_thumbs_up(lm):
     wrist = lm.landmark[0]
@@ -127,6 +168,12 @@ def is_thumbs_down(lm):
 def classify_gesture(lm):
     if is_fingers_crossed(lm):
         return "FINGERS CROSSED - Finger Follow Mode"
+    # Thumb gestures also satisfy the four-curled-fingers fist rule.
+    # Check the more specific gestures before the general fist fallback.
+    elif is_thumbs_up(lm):
+        return "THUMBS UP - Move Forward"
+    elif is_thumbs_down(lm):
+        return "THUMBS DOWN - Move Backward"
     elif is_closed_fist(lm):
         return "CLOSED FIST - Land/Return Home"
     elif is_open_palm(lm):
@@ -142,13 +189,15 @@ def classify_gesture(lm):
     elif pointing_dir == "right":
         return "POINTING RIGHT - Move Right"
 
-    if is_thumbs_up(lm):
-        return "THUMBS UP - Move Forward"
-    elif is_thumbs_down(lm):
-        return "THUMBS DOWN - Move Backward"
-
     return "Unclassified hand position"
 
+def debug_index_state(lm):
+    wrist = lm.landmark[0]
+    tip = lm.landmark[8]
+    pip = lm.landmark[6]
+    tip_dist = distance_3d(tip, wrist)
+    pip_dist = distance_3d(pip, wrist)
+    return tip_dist, pip_dist, tip_dist > pip_dist
 
 while True:
     success, frame = cap.read()
@@ -162,12 +211,25 @@ while True:
     if results.multi_hand_landmarks:
         for hand_landmarks in results.multi_hand_landmarks:
             mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-            gesture_text = classify_gesture(hand_landmarks)
 
-    cv2.putText(frame, gesture_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-    cv2.imshow("Hand Gesture Recognition", frame)
+            gesture_text = classify_gesture(hand_landmarks)
+            tip_dist, pip_dist, index_extended = debug_index_state(hand_landmarks)
+
+            cv2.putText(frame, f"tip_dist: {tip_dist:.4f}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(frame, f"pip_dist: {pip_dist:.4f}", (10, 60),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(frame, f"index_extended: {index_extended}", (10, 90),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
+    cv2.putText(frame, gesture_text, (10, 130),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+    cv2.imshow("Debug Values", frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
+
+cap.release()
+cv2.destroyAllWindows()
 
 cap.release()
 cv2.destroyAllWindows()
