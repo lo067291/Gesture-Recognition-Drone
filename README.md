@@ -1,30 +1,44 @@
-# Gesture-Recognition-Drone
+# Gesture Recognition Drone
 
-## Project Overview
+A Python computer-vision and drone-control project built around a DJI Tello. The goal is to combine owner face recognition, hand-gesture commands, and PID fingertip following.
 
-A DJI Tello drone that only unlocks flight commands after 
-recognizing its owner's face, then responds to hand gesture 
-commands for navigation - including a "fingers crossed" gesture 
-that activates fingertip-following mode.
+**Current stage:** Debugging gesture classification in a standalone webcam prototype. Gesture recognition and drone flight control are **not integrated**. Threading and PID finger-following have not been started, and return-to-launch remains unfinished.
 
-## How It Works
+## Development Status
 
-1. Powers on and rises to a fixed hover height
-2. Scans for owner's face within a timeout window
-3. If authorized: unlocks gesture-based flight control
-4. If not authorized: performs a rejection sequence (spin + land)
-5. Gesture vocabulary maps hand signals to flight commands
-6. "Fingers crossed" gesture activates fingertip-follow mode using 
-   PID control
-7. Closed fist gesture triggers approximate return-to-launch + land
-
-## Gesture Vocabulary
-
-| Gesture | Action |
+| Component | Status |
 |---|---|
-| Open palm | Hover / Stop |
-| Closed fist | Land (return home + land) |
-| Fingers crossed | Enter finger-follow mode |
+| Drone connection and basic flight commands | Implemented in a standalone flight test |
+| Tello video stream and owner face recognition | Implemented in a separate prototype; does not gate flight commands |
+| Nine-gesture classifier | In development; classification accuracy is being debugged |
+| Gesture-to-flight integration | Not integrated |
+| Application threading | Not started |
+| PID finger-following | Not started |
+| Return-to-launch | Unfinished |
+| Vision-based hover stabilization | Planned |
+| Integrated state machine and demo video | Planned |
+
+## Engineering Approach
+
+The gesture prototype uses MediaPipe hand landmarks and OpenCV to display classifications on a mirrored webcam feed. It explores:
+
+- Landmark-distance comparisons using x, y, and z coordinates to estimate finger extension.
+- A hand-relative 2D reference frame and dot-product projections for pointing direction.
+- Rule-based classification for a vocabulary of nine gestures.
+
+Reliable classification across hand poses and orientations is still being debugged. The on-screen labels describe intended drone actions; they do not send flight commands.
+
+See the [gesture-recognition development notes](docs/gesture-recognition-development.md) for the approaches explored and the coordinate-frame issues encountered.
+
+## Planned Gesture Mapping
+
+These are intended controls, not integrated flight capabilities.
+
+| Gesture | Intended action |
+|---|---|
+| Open palm | Hover / stop |
+| Closed fist | Approximate return-to-launch and land |
+| Fingers crossed | Enter PID finger-follow mode |
 | Point up | Ascend |
 | Point down | Descend |
 | Point left | Move left |
@@ -32,56 +46,78 @@ that activates fingertip-following mode.
 | Thumbs up | Move forward |
 | Thumbs down | Move backward |
 
-## Development Status
+## Repository Guide
 
-- [x] Drone connection and basic flight control (djitellopy)
-- [x] Live video stream via OpenCV
-- [x] Face recognition owner authentication
-- [x] Gesture classification (all 9 gestures, orientation-robust 
-      using 3D landmark math)
-- [ ] Gestures wired to live flight commands
-- [ ] Finger-follow PID mode
-- [ ] Vision-based hover stabilization
-- [ ] Approximate return-to-launch
-- [ ] Full state machine integration
-- [ ] Demo video
+| File | Current role |
+|---|---|
+| [src/gesture_recognition.py](src/gesture_recognition.py) | Webcam capture, landmark detection, gesture rules, and label display |
+| [src/drone_control.py](src/drone_control.py) | Standalone automated takeoff, movement, rotation, and landing test |
+| [src/face_auth.py](src/face_auth.py) | Face matching and labels over the Tello camera feed |
+| [src/finger_follow.py](src/finger_follow.py) | Placeholder for future PID following |
+| [requirements.txt](requirements.txt) | Python dependencies |
 
-## Technical Deep Dive
+## Setup
 
-See [docs/gesture-recognition-development.md](docs/gesture-recognition-development.md) 
-for a detailed writeup of the coordinate-frame problem encountered 
-during gesture direction detection, and the vector math solution 
-(hand-relative coordinate frames + dot product projection) used to 
-solve it.
+Clone the repository and create a virtual environment:
 
-## Tech Stack
+```bash
+git clone https://github.com/lo067291/Gesture-Recognition-Drone.git
+cd Gesture-Recognition-Drone
+python -m venv .venv
+```
 
-- **djitellopy** - drone flight control
-- **OpenCV** - video stream processing
-- **face_recognition** - owner authentication
-- **MediaPipe** - hand landmark detection
-- Python throughout
+Activate it with `source .venv/bin/activate` on macOS/Linux or `.venv\Scripts\Activate.ps1` in Windows PowerShell, then install dependencies:
 
-## Hardware
+```bash
+python -m pip install -r requirements.txt
+```
 
-- DJI Tello (standard, non-EDU)
-- Propeller guards (safety)
+Dependencies include djitellopy, OpenCV, MediaPipe (pinned to 0.10.9), face-recognition, and NumPy. A tested Python/platform compatibility matrix has not yet been documented.
 
-## Known Limitations
+### Run the Webcam Gesture Prototype
 
-- Hover stabilization currently relies on Tello's onboard 
-  stabilization; the standard (non-EDU) Tello's `get_speed_x/y` 
-  telemetry does not return reliable real-time velocity data, so 
-  active PID drift correction requires vision-based optical flow 
-  from the camera feed instead (in progress)
-- Return-to-launch is approximate, since standard Tello has no GPS 
-  or absolute positioning - relies on accumulated displacement 
-  tracking
+A webcam is required; a drone is not required for this script.
+
+```bash
+python src/gesture_recognition.py
+```
+
+The script opens camera index `0`, draws hand landmarks, and displays the current classification. Press **q** in the OpenCV window to exit. Misclassification is an active development issue.
+
+### Run the Face-Recognition Prototype
+
+Connect the computer to the Tello Wi-Fi network. Place a reference image named `owner_resized.jpg`, containing a detectable owner face, in the repository root; that image is not included in the repository.
+
+```bash
+python src/face_auth.py
+```
+
+This script streams the drone camera and labels recognized faces. It does not take off or enforce flight authorization. Press **q** in the OpenCV window to exit.
+
+### Standalone Flight Test
+
+`src/drone_control.py` automatically takes off, performs directional movements and rotations, then lands. Review the script before running it with a connected drone in a clear flight area with propeller guards. It is independent of both gesture classification and face recognition.
+
+## Next Steps
+
+1. Debug and validate gesture classification.
+2. Implement application threading and integrate gesture output with flight control.
+3. Implement PID finger-following.
+4. Finish and validate approximate return-to-launch.
+5. Integrate the state machine and record a demo.
+
+## Limitations
+
+- No end-to-end gesture-controlled flight workflow is available yet.
+- Gesture accuracy and orientation robustness have not been established.
+- Face matching is currently a separate display prototype, not a flight-access control.
+- The project uses a standard, non-EDU Tello. The intended return-to-launch behavior is approximate; a validated positioning approach is still needed.
+- Vision-based hover stabilization and PID following are future work.
 
 ## Author
 
-**Logan Stacy**
-- UCF Computer Engineering (BS/MS Accelerated - ISML Track)
-- CompTIA Security+ & Network+ Certified
-- [LinkedIn](https://linkedin.com/in/logan-stacy)
-- [GitHub](https://github.com/lo067291)
+**Logan Stacy**  
+Computer Engineering at UCF · Accelerated BS/MS  
+CompTIA Security+ · CompTIA Network+
+
+[LinkedIn](https://www.linkedin.com/in/logan-stacy) · [GitHub](https://github.com/lo067291) · [Student email](mailto:lo067291@ucf.edu)
